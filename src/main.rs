@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap, intrinsics::mir::Len, sync::{Arc, Mutex}
+    collections::HashMap, sync::Arc
 };
 
 use axum::{
@@ -11,6 +11,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use time::{macros::date, Date};
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 time::serde::format_description!(date_format, Date, "[year]-[month]-[day]");
@@ -38,7 +39,7 @@ pub struct NewPerson {
     pub stack: Option<Vec<String>>,
 }
 
-type AppState = Arc<Mutex<HashMap<Uuid, Person>>>;
+type AppState = Arc<RwLock<HashMap<Uuid, Person>>>;
 
 #[tokio::main]
 async fn main() {
@@ -57,7 +58,7 @@ async fn main() {
     people.insert(person.id, person);
     // HashMap::insert(&mut people, person.id, person);
 
-    let app_state: AppState = Arc::new(Mutex::new(people));
+    let app_state: AppState = Arc::new(RwLock::new(people));
 
     // build our application with a single route
     let app = Router::new()
@@ -73,22 +74,22 @@ async fn main() {
 }
 
 async fn search_people() -> impl IntoResponse {
-    return (StatusCode::OK, "Search for people");
+    (StatusCode::OK, "Search for people")
 }
 
 async fn find_person(
     State(people): State<AppState>,
     Path(person_id): Path<Uuid>,
 ) -> impl IntoResponse {
-    match people.lock().await.get(&person_id) {
+    match people.read().await.get(&person_id) {
         Some(person) => Ok(Json(person.clone())),
         None => Err(StatusCode::NOT_FOUND),
-    };
+    }
 }
 
 async fn create_person(
-    Json(new_person): Json<NewPerson>,
     State(people): State<AppState>,
+    Json(new_person): Json<NewPerson>,
 ) -> impl IntoResponse {
     let id = Uuid::now_v7();
     let person = Person {
@@ -98,11 +99,11 @@ async fn create_person(
         nick: new_person.nick,
         stack: new_person.stack,
     };
-    people.lock().await.insert(id, person.clone());
-    return (StatusCode::OK, Json(person));
+    people.write().await.insert(id, person.clone());
+    (StatusCode::OK, Json(person))
 }
 
 async fn people_account(State(people): State<AppState>) -> impl IntoResponse {
-    let count = people.lock().await.len();
-    return (StatusCode::OK, Json(count));
+    let count = people.read().await.len();
+    (StatusCode::OK, Json(count))
 }
