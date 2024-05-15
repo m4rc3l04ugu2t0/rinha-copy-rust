@@ -12,9 +12,11 @@ use time::Date;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
+mod persistence;
+
 time::serde::format_description!(date_format, Date, "[year]-[month]-[day]");
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, sqlx::FromRow)]
 pub struct Person {
     pub id: Uuid,
     #[serde(rename = "nome")]
