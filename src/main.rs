@@ -1,15 +1,15 @@
-use std::{collections::HashMap, env, net::SocketAddr, sync::Arc};
+use std::{env, net::SocketAddr, sync::Arc};
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
+use persistence::PostgresRepository;
 use serde::{Deserialize, Serialize};
 use time::Date;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 mod persistence;
@@ -37,9 +37,9 @@ impl TryFrom<String> for PersonName {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         if value.len() > 100 {
-            return Err("Name is to big");
+            Err("Name is to big")
         } else {
-            return Ok(PersonName(value));
+            Ok(PersonName(value))
         }
     }
 }
@@ -52,9 +52,9 @@ impl TryFrom<String> for Nick {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         if value.len() > 32 {
-            return Err("nick is to big");
+            Err("nick is to big")
         } else {
-            return Ok(Nick(value));
+            Ok(Nick(value))
         }
     }
 }
@@ -67,9 +67,9 @@ impl TryFrom<String> for Tech {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         if value.len() > 32 {
-            return Err("tech is to big");
+            Err("tech is to big")
         } else {
-            return Ok(Tech(value));
+            Ok(Tech(value))
         }
     }
 }
@@ -91,7 +91,7 @@ pub struct NewPerson {
     pub stack: Option<Vec<Tech>>,
 }
 
-type AppState = Arc<RwLock<HashMap<Uuid, Person>>>;
+type AppState = Arc<PostgresRepository>;
 
 #[tokio::main]
 async fn main() {
@@ -100,9 +100,12 @@ async fn main() {
         .and_then(|port| port.parse::<u16>().ok())
         .unwrap_or(9999);
 
-    let people: HashMap<Uuid, Person> = HashMap::new();
+    let url = env::var("DATABASE_URL")
+        .unwrap_or(String::from("postgress://rinha:rinha@localhost:5432/rinha"));
 
-    let app_state: AppState = Arc::new(RwLock::new(people));
+    let repo = PostgresRepository::connect(url).await;
+
+    let app_state = Arc::new(repo);
 
     // build our application with a single route
     let app = Router::new()
@@ -119,17 +122,31 @@ async fn main() {
         .await
         .unwrap();
 }
-async fn search_people() -> impl IntoResponse {
-    (StatusCode::OK, "Search for people")
+
+#[derive(Deserialize)]
+struct PersonSearchQuery {
+    #[serde(rename = "t")]
+    query: String,
+}
+
+async fn search_people(
+    State(people): State<AppState>,
+    Query(PersonSearchQuery { query }): Query<PersonSearchQuery>,
+) -> impl IntoResponse {
+    match people.search_people(query).await {
+        Ok(people) => Ok(Json(people)),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 async fn find_person(
     State(people): State<AppState>,
     Path(person_id): Path<Uuid>,
 ) -> impl IntoResponse {
-    match people.read().await.get(&person_id) {
-        Some(person) => Ok(Json(person.clone())),
-        None => Err(StatusCode::NOT_FOUND),
+    match people.find_person(person_id).await {
+        Ok(Some(person)) => Ok(Json(person)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -137,21 +154,18 @@ async fn create_person(
     State(people): State<AppState>,
     Json(new_person): Json<NewPerson>,
 ) -> impl IntoResponse {
-    let id = Uuid::now_v7();
-    let person = Person {
-        id,
-        name: new_person.name.0,
-        birth_date: new_person.birth_date,
-        nick: new_person.nick.0,
-        stack: new_person
-            .stack
-            .map(|stack| stack.into_iter().map(String::from).collect()),
-    };
-    people.write().await.insert(id, person.clone());
-    (StatusCode::OK, Json(person))
+    match people.create_person(new_person).await {
+        Ok(person) => Ok((StatusCode::CREATED, Json(person))),
+        Err(sqlx::Error::Database(err)) if err.is_unique_violation() => {
+            Err(StatusCode::UNPROCESSABLE_ENTITY)
+        }
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 async fn people_account(State(people): State<AppState>) -> impl IntoResponse {
-    let count = people.read().await.len();
-    (StatusCode::OK, Json(count))
+    match people.count_people().await {
+        Ok(count) => Ok(Json(count)),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
