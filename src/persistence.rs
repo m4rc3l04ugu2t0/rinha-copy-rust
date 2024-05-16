@@ -21,16 +21,16 @@ impl PostgresRepository {
     }
 
     pub async fn find_person(&self, id: Uuid) -> Result<Option<Person>, sqlx::Error> {
-        sqlx::query_as(
-            "
+        let map = sqlx::query_as!(
+            Person,
+            "     
             SELECT id, name, nick, birth_date, stack
             FROM people
             WHERE id = $1
-        ",
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await
+            ",
+            id
+        );
+        map.fetch_optional(&self.pool).await
     }
 
     pub async fn create_person(&self, new_person: NewPerson) -> Result<Person, sqlx::Error> {
@@ -59,7 +59,7 @@ impl PostgresRepository {
             "
             SELECT id, name, nick, birth_date, stack
             FROM people
-            WHARE to_tsquery('people', $1) @@ search
+            WHERE to_tsquery('people', $1) @@ search
             LIMIT 50
             ",
         )

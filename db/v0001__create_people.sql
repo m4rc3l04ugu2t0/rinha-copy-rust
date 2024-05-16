@@ -17,10 +17,10 @@ CREATE TABLE people (
     id UUID UNIQUE PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     nick VARCHAR(32) NOT NULL,
-    birch_date DATE NOT NULL,
+    birth_date DATE NOT NULL,
     stack VARCHAR(32)[],
     search TSVECTOR GENERATED ALWAYS AS (
-        TO_TSVECTOR('people', name || '' || nick || '' || ARRAY_TO_STRING_IMMUTABLE(stack, ' '))
+        TO_TSVECTOR('people', name || ' ' || nick || ' ' || ARRAY_TO_STRING_IMMUTABLE(stack, ' '))
     ) STORED,
     CONSTRAINT unique_nick UNIQUE (nick)
 );
