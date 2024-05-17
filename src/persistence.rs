@@ -21,16 +21,16 @@ impl PostgresRepository {
     }
 
     pub async fn find_person(&self, id: Uuid) -> Result<Option<Person>, sqlx::Error> {
-        let map = sqlx::query_as!(
-            Person,
+        sqlx::query_as(
             "     
             SELECT id, name, nick, birth_date, stack
             FROM people
             WHERE id = $1
             ",
-            id
-        );
-        map.fetch_optional(&self.pool).await
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
     }
 
     pub async fn create_person(&self, new_person: NewPerson) -> Result<Person, sqlx::Error> {

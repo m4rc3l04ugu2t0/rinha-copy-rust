@@ -2,8 +2,11 @@ version: '3.5'
 
 services:
   api1:
-    image: api
+    build: .
     hostname: api1
+    environment:
+      - PORT=80
+      - DATABASE_URL=postgres://rinha:rinha@db/rinha
     depends_on:
       - db
     expose:
@@ -15,8 +18,11 @@ services:
           memory: '0.5GB'
 
   api2:
-    image: api
+    build: .
     hostname: api2
+    environment:
+      - PORT=80
+      - DATABASE_URL=postgres://rinha:rinha@db/rinha
     depends_on:
       - db
     expose:
@@ -25,26 +31,32 @@ services:
       resources:
         limits:
           cpus: '0.25'
-          memory: '0.5GB' 
+          memory: '0.5GB'
+
   nginx:
     image: nginx:latest
-    valumes:
-    - ./nginx.conf:etc/nginx/nginx.conf:ro
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
     depends_on:
       - api1
       - api2
     ports:
-      -"9999:9999"
+      - "9999:9999"  # Certifique-se de que o nginx.conf está configurado para essa porta
     deploy:
-      resources:
-        cpus: '0.25'
-        memory: '0.5GB'
+      resources: 
+        limits:
+          cpus: '0.25'
+          memory: '0.5GB'
 
   db:
     image: postgres:15
-    volumes: 
+    volumes:
+      - db_data:/var/lib/postgresql/data  # Volume persistente
       - ./db:/docker-entrypoint-initdb.d
     environment:
       POSTGRES_USER: rinha
       POSTGRES_PASSWORD: rinha
       POSTGRES_DB: rinha
+
+volumes:
+  db_data:  # Definição do volume persistente para o banco de dados

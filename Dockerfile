@@ -4,7 +4,7 @@ RUN cargo new --bin app
 WORKDIR /app
 
 COPY Cargo.toml /app/
-COPY Cargo.lovk /app/
+COPY Cargo.lock /app/
 COPY .cargo /app/.cargo
 RUN cargo build --release
 
@@ -14,6 +14,6 @@ RUN cargo build --release
 
 FROM debian:buster-slim
 
-COPY --from=build /app/target/release/rinha /app/rinha 
+COPY --from=build /app/target/release/rinha-copy-rust /app/rinha-copy-rust 
 
-CMD "/app/rinha"
+CMD "/app/rinha-copy-rust"
