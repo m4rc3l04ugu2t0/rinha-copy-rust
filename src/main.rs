@@ -28,57 +28,33 @@ pub struct Person {
     pub stack: Option<Vec<String>>,
 }
 
-#[derive(Deserialize, Clone)]
-#[serde(try_from = "String")]
-pub struct PersonName(String);
+macro_rules! new_string_type {
+    ($type:ident, max_length = $max_len:expr, error = $error_msg:expr) => {
+        #[derive(Deserialize, Clone)]
+        #[serde(try_from = "String")]
+        pub struct $type(String);
+        impl TryFrom<String> for $type {
+            type Error = &'static str;
 
-impl TryFrom<String> for PersonName {
-    type Error = &'static str;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        if value.len() > 100 {
-            Err("Name is to big")
-        } else {
-            Ok(PersonName(value))
+            fn try_from(value: String) -> Result<Self, Self::Error> {
+                if value.len() > $max_len {
+                    Err($error_msg)
+                } else {
+                    Ok($type(value))
+                }
+            }
         }
-    }
-}
-
-#[derive(Deserialize, Clone)]
-#[serde(try_from = "String")]
-pub struct Nick(String);
-impl TryFrom<String> for Nick {
-    type Error = &'static str;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        if value.len() > 32 {
-            Err("nick is to big")
-        } else {
-            Ok(Nick(value))
+        impl From<$type> for String {
+            fn from(value: $type) -> Self {
+                value.0
+            }
         }
-    }
+    };
 }
 
-#[derive(Deserialize, Clone)]
-#[serde(try_from = "String")]
-pub struct Tech(String);
-impl TryFrom<String> for Tech {
-    type Error = &'static str;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        if value.len() > 32 {
-            Err("tech is to big")
-        } else {
-            Ok(Tech(value))
-        }
-    }
-}
-
-impl From<Tech> for String {
-    fn from(value: Tech) -> Self {
-        value.0
-    }
-}
+new_string_type!(PersonName, max_length = 100, error = "name is too big");
+new_string_type!(Nick, max_length = 32, error = "nick is too big");
+new_string_type!(Tech, max_length = 32, error = "tech is too big too");
 
 #[derive(Clone, Deserialize)]
 pub struct NewPerson {
